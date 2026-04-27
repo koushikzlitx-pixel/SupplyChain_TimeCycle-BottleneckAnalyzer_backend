@@ -1,6 +1,24 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Supply Chain Time Cycle & Bottleneck Analyzer")
+from app.database import init_db
+from app.routers import orders, stage_logs
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize database tables
+    init_db()
+    yield
+    # Shutdown: cleanup if needed
+
+app = FastAPI(
+    title="Supply Chain Time Cycle & Bottleneck Analyzer",
+    lifespan=lifespan
+)
+
+# Include routers
+app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
+app.include_router(stage_logs.router, prefix="/api/stage-logs", tags=["stage-logs"])
 
 
 @app.get("/")
