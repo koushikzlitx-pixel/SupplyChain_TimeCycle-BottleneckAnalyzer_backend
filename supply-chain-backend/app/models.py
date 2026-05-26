@@ -14,7 +14,7 @@ class OrderStatus(str, enum.Enum):
 
 
 class Order(Base):
-    """Order table - stores core order information."""
+    """Order table - stores core order information with analytics fields."""
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -28,6 +28,27 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
+
+    # Lifecycle timestamps
+    order_placed_at = Column(DateTime, nullable=True)
+    order_confirmed_at = Column(DateTime, nullable=True)
+    processing_completed_at = Column(DateTime, nullable=True)
+    shipped_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+
+    # Analytics fields - Stage durations (in hours)
+    procurement_time = Column(Float, nullable=True, comment="Duration from order placed to confirmed (hours)")
+    processing_time = Column(Float, nullable=True, comment="Duration from confirmed to processing completed (hours)")
+    dispatch_time = Column(Float, nullable=True, comment="Duration from processing completed to shipped (hours)")
+    delivery_time = Column(Float, nullable=True, comment="Duration from shipped to delivered (hours)")
+    total_time = Column(Float, nullable=True, index=True, comment="Total lifecycle duration (hours)")
+
+    # Analytics fields - SLA breach detection
+    sla_breach = Column(Integer, default=0, nullable=False, index=True, comment="1 if SLA breached, 0 otherwise")
+    breached_stage = Column(String(50), nullable=True, index=True, comment="Stage that breached SLA")
+
+    # Analytics fields - Bottleneck detection
+    bottleneck_stage = Column(String(50), nullable=True, index=True, comment="Stage identified as bottleneck")
 
     # Relationships
     stage_logs = relationship("StageLog", back_populates="order", cascade="all, delete-orphan")
