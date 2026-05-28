@@ -6,6 +6,8 @@ Provides endpoints for querying supply chain analytics:
 - SLA breach reports
 - Bottleneck analysis
 - Performance insights
+- CSV export workflows
+- Dummy data generation
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -18,9 +20,70 @@ from app.models import Order
 from app.schemas import OrderResponse
 from app.services.order_service import order_service
 from app.services.order_preprocessing import default_preprocessor
+from app.services.analytics_service import analytics_service
+from app.services.export_service import export_service
+from app.services.dummy_data_generator import dummy_data_generator
 from app.utils.sla_detector import get_sla_thresholds
 
 router = APIRouter()
+
+
+# ==================== ENHANCED SUMMARY & ANALYTICS ====================
+
+@router.get("/summary-enhanced")
+def get_enhanced_summary(db: Session = Depends(get_db)):
+    """
+    Get comprehensive enhanced analytics summary.
+    
+    Uses optimized aggregation queries for performance.
+    """
+    summary = analytics_service.get_summary_analytics(db)
+    return summary
+
+
+@router.get("/bottlenecks-enhanced")
+def get_enhanced_bottleneck_analysis(
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed bottleneck analysis with top orders.
+    
+    Returns:
+    - Total orders with bottlenecks
+    - Distribution by stage
+    - Top slowest orders
+    """
+    analysis = analytics_service.get_bottleneck_analytics(db, limit=limit)
+    return analysis
+
+
+@router.get("/sla-breaches-enhanced")
+def get_enhanced_sla_analysis(
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed SLA breach analysis.
+    
+    Returns:
+    - Total breaches and percentage
+    - Breached stages distribution
+    - Detailed breached orders with stage durations
+    """
+    analysis = analytics_service.get_sla_breach_analytics(db, limit=limit)
+    return analysis
+
+
+@router.get("/stage-performance-enhanced")
+def get_stage_performance_metrics(db: Session = Depends(get_db)):
+    """
+    Get comprehensive stage performance metrics.
+    
+    Returns min, max, avg, and standard deviation for each stage.
+    """
+    metrics = analytics_service.get_stage_performance_metrics(db)
+    return metrics
 
 
 @router.get("/summary")
@@ -264,3 +327,97 @@ def get_top_delayed_orders(
     ).order_by(Order.total_time.desc()).limit(limit).all()
     
     return orders
+
+
+# ==================== CSV EXPORT ====================
+
+@router.get("/export")
+def export_orders_csv(db: Session = Depends(get_db)):
+    """
+    Export all analytics-ready orders to CSV file.
+    
+    Returns:
+        - Export path
+        - Export summary with statistics
+        - File location for download
+    """
+    try:
+        # Fetch orders for export
+        orders_data = analytics_service.get_orders_for_export(db)
+        
+        if not orders_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No orders available for export"
+            )
+        
+        # Export to CSV
+        export_path, summary = export_service.export_orders_to_csv(orders_data)
+        
+        return {
+            "status": "success",
+            "message": "Orders exported to CSV successfully",
+            "export_path": export_path,
+            "summary": summary
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}"
+        )
+
+
+@router.get("/export-info")
+def get_export_info():
+    """
+    Get information about existing CSV exports.
+    
+    Returns files in export directory with metadata.
+    """
+    info = export_service.get_export_info()
+    return info
+
+
+# ==================== DUMMY DATA GENERATION ====================
+
+@router.post("/generate-dummy-data")
+def generate_dummy_data(
+    count: int = Query(default=200, ge=10, le=1000),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate and insert realistic dummy orders into database.
+    
+    Parameters:
+        count: Number of dummy orders to generate (10-1000)
+    
+    Generates diverse scenarios including:
+    - Normal orders
+    - SLA breaches
+    - Different bottleneck patterns
+    - Various priority levels
+    
+    Returns:
+    - Total orders generated
+    - Insertion statistics
+    - SLA breach analysis
+    - Bottleneck distribution
+    """
+    try:
+        summary = dummy_data_generator.seed_orders_data(db, count=count)
+        
+        return {
+            "status": "success",
+            "message": f"Successfully generated and inserted {summary['total_inserted']} dummy orders",
+            "summary": summary
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Dummy data generation failed: {str(e)}"
+        )
+
+
+# ==================== ORIGINAL ENDPOINTS (PRESERVED) ====================

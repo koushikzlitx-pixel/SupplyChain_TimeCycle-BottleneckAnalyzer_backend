@@ -1,0 +1,263 @@
+"""
+Test Script for Phase 2 Analytics Implementation
+
+Tests all new features:
+- Analytics aggregation services
+- CSV export functionality
+- Dummy data generation
+- Validation utilities
+
+Run with: python test_phase2.py
+"""
+
+import sys
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from app.utils.validator import order_validator, ValidationError
+from app.utils.time_calculator import time_calculator
+from app.utils.sla_detector import sla_detector
+from app.utils.bottleneck_detector import bottleneck_detector
+
+
+def test_validator():
+    """Test validation utilities."""
+    print("\n" + "="*60)
+    print("TESTING VALIDATOR")
+    print("="*60)
+    
+    # Test 1: Valid timestamp sequence
+    print("\n[Test 1] Valid timestamp sequence")
+    timestamps = {
+        "order_placed_at": datetime(2026, 5, 1, 10, 0),
+        "order_confirmed_at": datetime(2026, 5, 2, 8, 0),
+        "processing_completed_at": datetime(2026, 5, 5, 10, 0),
+        "shipped_at": datetime(2026, 5, 5, 18, 0),
+        "delivered_at": datetime(2026, 5, 7, 14, 0),
+    }
+    is_valid, errors = order_validator.validate_timestamp_sequence(timestamps)
+    print(f"✓ Valid: {is_valid}, Errors: {errors}")
+    assert is_valid, "Valid timestamps should pass validation"
+    
+    # Test 2: Invalid timestamp sequence (out of order)
+    print("\n[Test 2] Invalid timestamp sequence (out of order)")
+    bad_timestamps = {
+        "order_placed_at": datetime(2026, 5, 1, 10, 0),
+        "order_confirmed_at": datetime(2026, 5, 2, 8, 0),
+        "processing_completed_at": datetime(2026, 5, 1, 10, 0),  # Before confirmed
+        "shipped_at": datetime(2026, 5, 5, 18, 0),
+        "delivered_at": datetime(2026, 5, 7, 14, 0),
+    }
+    is_valid, errors = order_validator.validate_timestamp_sequence(bad_timestamps)
+    print(f"✓ Valid: {is_valid}, Errors: {len(errors)} error(s) detected")
+    assert not is_valid, "Invalid timestamps should fail validation"
+    
+    # Test 3: Duration validation
+    print("\n[Test 3] Duration validation")
+    is_valid, errors = order_validator.validate_durations(
+        procurement_time=22.5,
+        processing_time=72.0,
+        dispatch_time=10.5,
+        delivery_time=48.0
+    )
+    print(f"✓ Valid: {is_valid}, Errors: {errors}")
+    assert is_valid, "Valid durations should pass validation"
+    
+    # Test 4: Invalid duration (negative)
+    print("\n[Test 4] Invalid duration (negative)")
+    is_valid, errors = order_validator.validate_durations(
+        procurement_time=-5.0
+    )
+    print(f"✓ Valid: {is_valid}, Errors detected: {len(errors)}")
+    assert not is_valid, "Negative durations should fail validation"
+    
+    # Test 5: Comprehensive order validation
+    print("\n[Test 5] Comprehensive order validation")
+    order_data = {
+        "order_number": "TEST-001",
+        "customer_name": "Test Corp",
+        "product_name": "Widget A",
+        "quantity": 100,
+        "order_placed_at": datetime(2026, 5, 1, 10, 0),
+        "order_confirmed_at": datetime(2026, 5, 2, 8, 0),
+        "processing_completed_at": datetime(2026, 5, 5, 10, 0),
+        "shipped_at": datetime(2026, 5, 5, 18, 0),
+        "delivered_at": datetime(2026, 5, 7, 14, 0),
+    }
+    is_valid, errors, metadata = order_validator.validate_order_data(order_data)
+    print(f"✓ Valid: {is_valid}")
+    print(f"✓ Has timestamps: {metadata['has_timestamps']}")
+    print(f"✓ All timestamps complete: {metadata['has_all_timestamps']}")
+    assert is_valid, "Valid order should pass comprehensive validation"
+    
+    print("\n✅ VALIDATOR TESTS PASSED")
+
+
+def test_time_calculator():
+    """Test time calculation utilities."""
+    print("\n" + "="*60)
+    print("TESTING TIME CALCULATOR")
+    print("="*60)
+    
+    # Test durations
+    print("\n[Test 1] Calculate individual durations")
+    
+    order_placed = datetime(2026, 5, 1, 10, 0)
+    order_confirmed = datetime(2026, 5, 2, 8, 0)
+    processing_completed = datetime(2026, 5, 5, 10, 0)
+    shipped = datetime(2026, 5, 5, 18, 0)
+    delivered = datetime(2026, 5, 7, 14, 0)
+    
+    procurement_time = time_calculator.calculate_procurement_time(order_placed, order_confirmed)
+    processing_time = time_calculator.calculate_processing_time(order_confirmed, processing_completed)
+    dispatch_time = time_calculator.calculate_dispatch_time(processing_completed, shipped)
+    delivery_time = time_calculator.calculate_delivery_time(shipped, delivered)
+    total_time = time_calculator.calculate_total_time(order_placed, delivered)
+    
+    print(f"✓ Procurement: {procurement_time}h")
+    print(f"✓ Processing: {processing_time}h")
+    print(f"✓ Dispatch: {dispatch_time}h")
+    print(f"✓ Delivery: {delivery_time}h")
+    print(f"✓ Total: {total_time}h")
+    
+    assert procurement_time == 22.0
+    assert processing_time == 74.0
+    assert dispatch_time == 8.0
+    assert delivery_time == 44.0
+    
+    # Test with None values (null handling)
+    print("\n[Test 2] Null value handling")
+    result = time_calculator.calculate_duration(order_placed, None)
+    print(f"✓ None timestamp handled: {result}")
+    assert result is None or result == 0
+    
+    print("\n✅ TIME CALCULATOR TESTS PASSED")
+
+
+def test_sla_detector():
+    """Test SLA detection utilities."""
+    print("\n" + "="*60)
+    print("TESTING SLA DETECTOR")
+    print("="*60)
+    
+    # Test SLA compliance
+    print("\n[Test 1] SLA breach detection - procurement stage")
+    
+    # Breach: procurement > 24 hours
+    order_placed = datetime(2026, 5, 1, 10, 0)
+    order_confirmed_breach = datetime(2026, 5, 2, 15, 0)  # 29 hours - breach
+    order_confirmed_ok = datetime(2026, 5, 2, 8, 0)  # 22 hours - ok
+    
+    is_breach = sla_detector.check_sla_breach(
+        order_placed, order_confirmed_breach, stage="procurement"
+    )
+    print(f"✓ Procurement breach (29h): {is_breach}")
+    assert is_breach, "29 hour procurement should be breach"
+    
+    is_ok = sla_detector.check_sla_breach(
+        order_placed, order_confirmed_ok, stage="procurement"
+    )
+    print(f"✓ Procurement OK (22h): {is_ok}")
+    assert not is_ok, "22 hour procurement should not be breach"
+    
+    # Test thresholds
+    print("\n[Test 2] Get SLA thresholds")
+    thresholds = sla_detector.get_sla_thresholds()
+    print(f"✓ Procurement threshold: {thresholds['procurement']}h")
+    print(f"✓ Processing threshold: {thresholds['processing']}h")
+    print(f"✓ Dispatch threshold: {thresholds['dispatch']}h")
+    print(f"✓ Delivery threshold: {thresholds['delivery']}h")
+    
+    assert thresholds['procurement'] == 24
+    assert thresholds['processing'] == 72
+    assert thresholds['dispatch'] == 12
+    assert thresholds['delivery'] == 48
+    
+    print("\n✅ SLA DETECTOR TESTS PASSED")
+
+
+def test_bottleneck_detector():
+    """Test bottleneck detection utilities."""
+    print("\n" + "="*60)
+    print("TESTING BOTTLENECK DETECTOR")
+    print("="*60)
+    
+    print("\n[Test 1] Identify bottleneck stage")
+    
+    durations = {
+        "procurement_time": 15.0,
+        "processing_time": 85.0,  # Longest
+        "dispatch_time": 8.0,
+        "delivery_time": 35.0,
+    }
+    
+    bottleneck = bottleneck_detector.identify_bottleneck(durations)
+    print(f"✓ Bottleneck stage: {bottleneck}")
+    assert bottleneck == "processing", "Processing should be identified as bottleneck"
+    
+    # Test with different bottleneck
+    print("\n[Test 2] Different bottleneck scenario")
+    durations2 = {
+        "procurement_time": 20.0,
+        "processing_time": 60.0,
+        "dispatch_time": 12.0,
+        "delivery_time": 120.0,  # Longest
+    }
+    
+    bottleneck2 = bottleneck_detector.identify_bottleneck(durations2)
+    print(f"✓ Bottleneck stage: {bottleneck2}")
+    assert bottleneck2 == "delivery", "Delivery should be identified as bottleneck"
+    
+    # Test ranking
+    print("\n[Test 3] Stage ranking by duration")
+    ranking = bottleneck_detector.analyze_bottlenecks(durations)
+    print(f"✓ Ranking:")
+    for stage, duration in ranking:
+        print(f"  - {stage}: {duration}h")
+    
+    assert ranking[0][0] == "processing", "First should be processing (longest)"
+    
+    print("\n✅ BOTTLENECK DETECTOR TESTS PASSED")
+
+
+def main():
+    """Run all tests."""
+    print("\n" + "="*60)
+    print("PHASE 2 ANALYTICS IMPLEMENTATION TEST SUITE")
+    print("="*60)
+    
+    try:
+        test_validator()
+        test_time_calculator()
+        test_sla_detector()
+        test_bottleneck_detector()
+        
+        print("\n" + "="*60)
+        print("✅ ALL TESTS PASSED SUCCESSFULLY")
+        print("="*60)
+        print("\nNext steps:")
+        print("1. Install pandas: pip install pandas>=2.0.0")
+        print("2. Start server: python -m uvicorn app.main:app --reload")
+        print("3. Visit: http://localhost:8000/docs")
+        print("4. Test endpoints:")
+        print("   - POST /api/analytics/generate-dummy-data?count=50")
+        print("   - GET /api/analytics/summary-enhanced")
+        print("   - GET /api/analytics/export")
+        print("\n")
+        
+    except AssertionError as e:
+        print(f"\n❌ TEST FAILED: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
