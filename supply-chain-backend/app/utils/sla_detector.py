@@ -10,43 +10,48 @@ from typing import Optional, Tuple, Dict
 
 # Configurable SLA Thresholds (in hours)
 SLA_THRESHOLDS = {
-    "procurement": 24.0,      # 1 day for order confirmation
-    "processing": 72.0,       # 3 days for processing
-    "dispatch": 12.0,         # 12 hours for dispatch
-    "delivery": 48.0,         # 2 days for delivery
+    "procurement": 4.0,    # 4 hours for order confirmation
+    "processing": 6.0,     # 6 hours for processing
+    "dispatch": 3.0,       # 3 hours for dispatch
+    "delivery": 24.0,      # 24 hours for delivery
 }
 
 
 def check_sla_breach(
     procurement_time: Optional[float] = None,
     processing_time: Optional[float] = None,
+    dispatch_time_duration: Optional[float] = None,
+    delivery_time_duration: Optional[float] = None,
+    custom_thresholds: Optional[Dict[str, float]] = None,
+    # Backward-compatible aliases
     dispatch_time: Optional[float] = None,
     delivery_time: Optional[float] = None,
-    custom_thresholds: Optional[Dict[str, float]] = None
 ) -> Tuple[bool, Optional[str]]:
     """
     Check if any stage has breached its SLA threshold.
-    
+
     Args:
         procurement_time: Duration for procurement stage (hours)
         processing_time: Duration for processing stage (hours)
-        dispatch_time: Duration for dispatch stage (hours)
-        delivery_time: Duration for delivery stage (hours)
+        dispatch_time_duration: Duration for dispatch stage (hours)
+        delivery_time_duration: Duration for delivery stage (hours)
         custom_thresholds: Optional custom SLA thresholds to override defaults
-        
+
     Returns:
         Tuple of (sla_breach: bool, breached_stage: str or None)
-        - sla_breach: True if any stage breached SLA
-        - breached_stage: Name of the first stage that breached SLA, or None
     """
+    # Accept old kwarg names as fallback
+    resolved_dispatch = dispatch_time_duration if dispatch_time_duration is not None else dispatch_time
+    resolved_delivery = delivery_time_duration if delivery_time_duration is not None else delivery_time
+
     thresholds = custom_thresholds if custom_thresholds else SLA_THRESHOLDS
-    
+
     # Check each stage in order
     stages_to_check = [
         ("procurement", procurement_time, thresholds.get("procurement")),
         ("processing", processing_time, thresholds.get("processing")),
-        ("dispatch", dispatch_time, thresholds.get("dispatch")),
-        ("delivery", delivery_time, thresholds.get("delivery")),
+        ("dispatch", resolved_dispatch, thresholds.get("dispatch")),
+        ("delivery", resolved_delivery, thresholds.get("delivery")),
     ]
     
     for stage_name, duration, threshold in stages_to_check:
@@ -65,39 +70,46 @@ def check_sla_breach(
 def get_sla_status(
     procurement_time: Optional[float] = None,
     processing_time: Optional[float] = None,
+    dispatch_time_duration: Optional[float] = None,
+    delivery_time_duration: Optional[float] = None,
+    custom_thresholds: Optional[Dict[str, float]] = None,
+    # Backward-compatible aliases
     dispatch_time: Optional[float] = None,
     delivery_time: Optional[float] = None,
-    custom_thresholds: Optional[Dict[str, float]] = None
 ) -> Dict[str, any]:
     """
     Get detailed SLA status for all stages.
-    
+
     Args:
         procurement_time: Duration for procurement stage (hours)
         processing_time: Duration for processing stage (hours)
-        dispatch_time: Duration for dispatch stage (hours)
-        delivery_time: Duration for delivery stage (hours)
+        dispatch_time_duration: Duration for dispatch stage (hours)
+        delivery_time_duration: Duration for delivery stage (hours)
         custom_thresholds: Optional custom SLA thresholds
-        
+
     Returns:
-        Dictionary containing:
-            - sla_breach: Overall breach status
-            - breached_stage: First stage that breached (or None)
-            - stage_details: Per-stage breach information
+        Dictionary containing sla_breach, breached_stage, and stage_details
     """
+    resolved_dispatch = dispatch_time_duration if dispatch_time_duration is not None else dispatch_time
+    resolved_delivery = delivery_time_duration if delivery_time_duration is not None else delivery_time
+
     sla_breach, breached_stage = check_sla_breach(
-        procurement_time, processing_time, dispatch_time, delivery_time, custom_thresholds
+        procurement_time=procurement_time,
+        processing_time=processing_time,
+        dispatch_time_duration=resolved_dispatch,
+        delivery_time_duration=resolved_delivery,
+        custom_thresholds=custom_thresholds,
     )
-    
+
     thresholds = custom_thresholds if custom_thresholds else SLA_THRESHOLDS
-    
+
     # Build detailed stage information
     stage_details = {}
     stages = {
         "procurement": procurement_time,
         "processing": processing_time,
-        "dispatch": dispatch_time,
-        "delivery": delivery_time,
+        "dispatch": resolved_dispatch,
+        "delivery": resolved_delivery,
     }
     
     for stage_name, duration in stages.items():

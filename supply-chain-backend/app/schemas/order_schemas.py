@@ -67,8 +67,8 @@ class OrderResponse(OrderBase):
     # Analytics fields - Durations
     procurement_time: Optional[float] = None
     processing_time: Optional[float] = None
-    dispatch_time: Optional[float] = None
-    delivery_time: Optional[float] = None
+    dispatch_time_duration: Optional[float] = None
+    delivery_time_duration: Optional[float] = None
     total_time: Optional[float] = None
     
     # Analytics fields - SLA breach

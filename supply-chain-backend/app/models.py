@@ -39,8 +39,8 @@ class Order(Base):
     # Analytics fields - Stage durations (in hours)
     procurement_time = Column(Float, nullable=True, comment="Duration from order placed to confirmed (hours)")
     processing_time = Column(Float, nullable=True, comment="Duration from confirmed to processing completed (hours)")
-    dispatch_time = Column(Float, nullable=True, comment="Duration from processing completed to shipped (hours)")
-    delivery_time = Column(Float, nullable=True, comment="Duration from shipped to delivered (hours)")
+    dispatch_time_duration = Column(Float, nullable=True, comment="Duration from processing completed to shipped (hours)")
+    delivery_time_duration = Column(Float, nullable=True, comment="Duration from shipped to delivered (hours)")
     total_time = Column(Float, nullable=True, index=True, comment="Total lifecycle duration (hours)")
 
     # Analytics fields - SLA breach detection

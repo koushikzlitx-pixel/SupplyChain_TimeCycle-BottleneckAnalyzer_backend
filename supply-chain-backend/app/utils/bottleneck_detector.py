@@ -11,26 +11,32 @@ from typing import Optional, Dict, List, Tuple
 def identify_bottleneck(
     procurement_time: Optional[float] = None,
     processing_time: Optional[float] = None,
+    dispatch_time_duration: Optional[float] = None,
+    delivery_time_duration: Optional[float] = None,
+    # Backward-compatible aliases
     dispatch_time: Optional[float] = None,
-    delivery_time: Optional[float] = None
+    delivery_time: Optional[float] = None,
 ) -> Optional[str]:
     """
     Identify the bottleneck stage with the highest duration.
-    
+
     Args:
         procurement_time: Duration for procurement stage (hours)
         processing_time: Duration for processing stage (hours)
-        dispatch_time: Duration for dispatch stage (hours)
-        delivery_time: Duration for delivery stage (hours)
-        
+        dispatch_time_duration: Duration for dispatch stage (hours)
+        delivery_time_duration: Duration for delivery stage (hours)
+
     Returns:
         Name of the bottleneck stage, or None if no valid durations found
     """
+    resolved_dispatch = dispatch_time_duration if dispatch_time_duration is not None else dispatch_time
+    resolved_delivery = delivery_time_duration if delivery_time_duration is not None else delivery_time
+
     stages = {
         "procurement": procurement_time,
         "processing": processing_time,
-        "dispatch": dispatch_time,
-        "delivery": delivery_time,
+        "dispatch": resolved_dispatch,
+        "delivery": resolved_delivery,
     }
     
     # Filter out None values
@@ -47,30 +53,33 @@ def identify_bottleneck(
 def analyze_bottlenecks(
     procurement_time: Optional[float] = None,
     processing_time: Optional[float] = None,
+    dispatch_time_duration: Optional[float] = None,
+    delivery_time_duration: Optional[float] = None,
+    # Backward-compatible aliases
     dispatch_time: Optional[float] = None,
-    delivery_time: Optional[float] = None
+    delivery_time: Optional[float] = None,
 ) -> Dict[str, any]:
     """
     Perform comprehensive bottleneck analysis on all stages.
-    
+
     Args:
         procurement_time: Duration for procurement stage (hours)
         processing_time: Duration for processing stage (hours)
-        dispatch_time: Duration for dispatch stage (hours)
-        delivery_time: Duration for delivery stage (hours)
-        
+        dispatch_time_duration: Duration for dispatch stage (hours)
+        delivery_time_duration: Duration for delivery stage (hours)
+
     Returns:
-        Dictionary containing:
-            - bottleneck_stage: Stage with highest duration
-            - bottleneck_duration: Duration of the bottleneck
-            - stage_rankings: List of stages sorted by duration (desc)
-            - stage_percentages: Percentage contribution of each stage
+        Dictionary with bottleneck_stage, bottleneck_duration, stage_rankings,
+        and stage_percentages
     """
+    resolved_dispatch = dispatch_time_duration if dispatch_time_duration is not None else dispatch_time
+    resolved_delivery = delivery_time_duration if delivery_time_duration is not None else delivery_time
+
     stages = {
         "procurement": procurement_time,
         "processing": processing_time,
-        "dispatch": dispatch_time,
-        "delivery": delivery_time,
+        "dispatch": resolved_dispatch,
+        "delivery": resolved_delivery,
     }
     
     # Filter out None values
@@ -135,8 +144,8 @@ def get_top_bottlenecks(
         analysis = analyze_bottlenecks(
             order.get("procurement_time"),
             order.get("processing_time"),
-            order.get("dispatch_time"),
-            order.get("delivery_time")
+            dispatch_time_duration=order.get("dispatch_time_duration"),
+            delivery_time_duration=order.get("delivery_time_duration")
         )
         
         if analysis["bottleneck_stage"]:

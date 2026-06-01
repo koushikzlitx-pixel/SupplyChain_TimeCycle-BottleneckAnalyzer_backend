@@ -63,12 +63,12 @@ class AnalyticsService:
             Order.processing_time.isnot(None)
         ).scalar()
         
-        avg_dispatch = db.query(func.avg(Order.dispatch_time)).filter(
-            Order.dispatch_time.isnot(None)
+        avg_dispatch = db.query(func.avg(Order.dispatch_time_duration)).filter(
+            Order.dispatch_time_duration.isnot(None)
         ).scalar()
         
-        avg_delivery = db.query(func.avg(Order.delivery_time)).filter(
-            Order.delivery_time.isnot(None)
+        avg_delivery = db.query(func.avg(Order.delivery_time_duration)).filter(
+            Order.delivery_time_duration.isnot(None)
         ).scalar()
         
         # SLA breach analysis
@@ -98,14 +98,22 @@ class AnalyticsService:
                 "total_time": round(avg_total, 2) if avg_total else None,
                 "procurement_time": round(avg_procurement, 2) if avg_procurement else None,
                 "processing_time": round(avg_processing, 2) if avg_processing else None,
-                "dispatch_time": round(avg_dispatch, 2) if avg_dispatch else None,
-                "delivery_time": round(avg_delivery, 2) if avg_delivery else None,
+                "dispatch_time_duration": round(avg_dispatch, 2) if avg_dispatch else None,
+                "delivery_time_duration": round(avg_delivery, 2) if avg_delivery else None,
             },
             "sla_analysis": {
                 "total_breaches": sla_breaches,
                 "breach_percentage": sla_breach_percentage,
             },
             "bottleneck_distribution": bottleneck_distribution,
+        }
+
+    @staticmethod
+    def get_summary_response(db: Session) -> Dict[str, Any]:
+        """Return API-ready analytics summary payload."""
+        return {
+            "status": "success",
+            "data": AnalyticsService.get_summary_analytics(db)
         }
     
     @staticmethod
@@ -171,6 +179,14 @@ class AnalyticsService:
             "bottleneck_stages": bottleneck_stages,
             "top_bottleneck_orders": top_orders_list,
         }
+
+    @staticmethod
+    def get_bottleneck_response(db: Session, limit: int = 100) -> Dict[str, Any]:
+        """Return API-ready bottleneck payload."""
+        return {
+            "status": "success",
+            "data": AnalyticsService.get_bottleneck_analytics(db, limit=limit)
+        }
     
     @staticmethod
     def get_sla_breach_analytics(db: Session, limit: int = 100) -> Dict[str, Any]:
@@ -214,8 +230,8 @@ class AnalyticsService:
             Order.total_time,
             Order.procurement_time,
             Order.processing_time,
-            Order.dispatch_time,
-            Order.delivery_time,
+            Order.dispatch_time_duration,
+            Order.delivery_time_duration,
         ).filter(
             Order.sla_breach == True
         ).order_by(Order.total_time.desc()).limit(limit).all()
@@ -229,8 +245,8 @@ class AnalyticsService:
                 "stage_durations": {
                     "procurement_time": order.procurement_time,
                     "processing_time": order.processing_time,
-                    "dispatch_time": order.dispatch_time,
-                    "delivery_time": order.delivery_time,
+                    "dispatch_time_duration": order.dispatch_time_duration,
+                    "delivery_time_duration": order.delivery_time_duration,
                 }
             }
             for order in breached_orders_query
@@ -241,6 +257,14 @@ class AnalyticsService:
             "breach_percentage": breach_percentage,
             "breached_stages": breached_stages,
             "breached_orders": breached_orders,
+        }
+
+    @staticmethod
+    def get_sla_breach_response(db: Session, limit: int = 100) -> Dict[str, Any]:
+        """Return API-ready SLA breach payload."""
+        return {
+            "status": "success",
+            "data": AnalyticsService.get_sla_breach_analytics(db, limit=limit)
         }
     
     @staticmethod
@@ -277,8 +301,8 @@ class AnalyticsService:
                 # Durations (hours)
                 "procurement_time": order.procurement_time,
                 "processing_time": order.processing_time,
-                "dispatch_time": order.dispatch_time,
-                "delivery_time": order.delivery_time,
+                "dispatch_time_duration": order.dispatch_time_duration,
+                "delivery_time_duration": order.delivery_time_duration,
                 "total_time": order.total_time,
                 
                 # SLA Analysis
@@ -306,8 +330,8 @@ class AnalyticsService:
         stages = {
             "procurement": Order.procurement_time,
             "processing": Order.processing_time,
-            "dispatch": Order.dispatch_time,
-            "delivery": Order.delivery_time,
+            "dispatch": Order.dispatch_time_duration,
+            "delivery": Order.delivery_time_duration,
             "total": Order.total_time,
         }
         

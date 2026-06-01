@@ -19,9 +19,16 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(Path(__file__).parent))
 
 from app.utils.validator import order_validator, ValidationError
-from app.utils.time_calculator import time_calculator
-from app.utils.sla_detector import sla_detector
-from app.utils.bottleneck_detector import bottleneck_detector
+from app.utils.time_calculator import (
+    calculate_procurement_time,
+    calculate_processing_time,
+    calculate_dispatch_time_duration,
+    calculate_delivery_time_duration,
+    calculate_total_time,
+    calculate_duration,
+)
+from app.utils.sla_detector import check_sla_breach, get_sla_thresholds
+from app.utils.bottleneck_detector import identify_bottleneck, analyze_bottlenecks
 
 
 def test_validator():
@@ -60,9 +67,9 @@ def test_validator():
     print("\n[Test 3] Duration validation")
     is_valid, errors = order_validator.validate_durations(
         procurement_time=22.5,
-        processing_time=72.0,
-        dispatch_time=10.5,
-        delivery_time=48.0
+        processing_time=5.0,
+        dispatch_time_duration=2.5,
+        delivery_time_duration=20.0
     )
     print(f"✓ Valid: {is_valid}, Errors: {errors}")
     assert is_valid, "Valid durations should pass validation"
@@ -112,26 +119,26 @@ def test_time_calculator():
     shipped = datetime(2026, 5, 5, 18, 0)
     delivered = datetime(2026, 5, 7, 14, 0)
     
-    procurement_time = time_calculator.calculate_procurement_time(order_placed, order_confirmed)
-    processing_time = time_calculator.calculate_processing_time(order_confirmed, processing_completed)
-    dispatch_time = time_calculator.calculate_dispatch_time(processing_completed, shipped)
-    delivery_time = time_calculator.calculate_delivery_time(shipped, delivered)
-    total_time = time_calculator.calculate_total_time(order_placed, delivered)
+    procurement_time = calculate_procurement_time(order_placed, order_confirmed)
+    processing_time = calculate_processing_time(order_confirmed, processing_completed)
+    dispatch_time_duration = calculate_dispatch_time_duration(processing_completed, shipped)
+    delivery_time_duration = calculate_delivery_time_duration(shipped, delivered)
+    total_time = calculate_total_time(order_placed, delivered)
     
     print(f"✓ Procurement: {procurement_time}h")
     print(f"✓ Processing: {processing_time}h")
-    print(f"✓ Dispatch: {dispatch_time}h")
-    print(f"✓ Delivery: {delivery_time}h")
+    print(f"✓ Dispatch: {dispatch_time_duration}h")
+    print(f"✓ Delivery: {delivery_time_duration}h")
     print(f"✓ Total: {total_time}h")
     
     assert procurement_time == 22.0
     assert processing_time == 74.0
-    assert dispatch_time == 8.0
-    assert delivery_time == 44.0
+    assert dispatch_time_duration == 8.0
+    assert delivery_time_duration == 44.0
     
     # Test with None values (null handling)
     print("\n[Test 2] Null value handling")
-    result = time_calculator.calculate_duration(order_placed, None)
+    result = calculate_duration(order_placed, None)
     print(f"✓ None timestamp handled: {result}")
     assert result is None or result == 0
     
@@ -146,36 +153,28 @@ def test_sla_detector():
     
     # Test SLA compliance
     print("\n[Test 1] SLA breach detection - procurement stage")
-    
-    # Breach: procurement > 24 hours
-    order_placed = datetime(2026, 5, 1, 10, 0)
-    order_confirmed_breach = datetime(2026, 5, 2, 15, 0)  # 29 hours - breach
-    order_confirmed_ok = datetime(2026, 5, 2, 8, 0)  # 22 hours - ok
-    
-    is_breach = sla_detector.check_sla_breach(
-        order_placed, order_confirmed_breach, stage="procurement"
-    )
-    print(f"✓ Procurement breach (29h): {is_breach}")
-    assert is_breach, "29 hour procurement should be breach"
-    
-    is_ok = sla_detector.check_sla_breach(
-        order_placed, order_confirmed_ok, stage="procurement"
-    )
-    print(f"✓ Procurement OK (22h): {is_ok}")
-    assert not is_ok, "22 hour procurement should not be breach"
-    
+
+    # New threshold: procurement = 4 hours
+    is_breach, breached_stage = check_sla_breach(procurement_time=5.0)   # 5h > 4h threshold
+    print(f"✓ Procurement breach (5h > 4h threshold): {is_breach}")
+    assert is_breach, "5h procurement should breach 4h SLA"
+
+    is_ok, _ = check_sla_breach(procurement_time=3.0)                    # 3h < 4h threshold
+    print(f"✓ Procurement OK (3h < 4h threshold): {not is_ok}")
+    assert not is_ok, "3h procurement should not breach 4h SLA"
+
     # Test thresholds
     print("\n[Test 2] Get SLA thresholds")
-    thresholds = sla_detector.get_sla_thresholds()
+    thresholds = get_sla_thresholds()
     print(f"✓ Procurement threshold: {thresholds['procurement']}h")
     print(f"✓ Processing threshold: {thresholds['processing']}h")
     print(f"✓ Dispatch threshold: {thresholds['dispatch']}h")
     print(f"✓ Delivery threshold: {thresholds['delivery']}h")
     
-    assert thresholds['procurement'] == 24
-    assert thresholds['processing'] == 72
-    assert thresholds['dispatch'] == 12
-    assert thresholds['delivery'] == 48
+    assert thresholds['procurement'] == 4
+    assert thresholds['processing'] == 6
+    assert thresholds['dispatch'] == 3
+    assert thresholds['delivery'] == 24
     
     print("\n✅ SLA DETECTOR TESTS PASSED")
 
@@ -191,11 +190,16 @@ def test_bottleneck_detector():
     durations = {
         "procurement_time": 15.0,
         "processing_time": 85.0,  # Longest
-        "dispatch_time": 8.0,
-        "delivery_time": 35.0,
+        "dispatch_time_duration": 8.0,
+        "delivery_time_duration": 35.0,
     }
     
-    bottleneck = bottleneck_detector.identify_bottleneck(durations)
+    bottleneck = identify_bottleneck(
+        procurement_time=durations["procurement_time"],
+        processing_time=durations["processing_time"],
+        dispatch_time_duration=durations["dispatch_time_duration"],
+        delivery_time_duration=durations["delivery_time_duration"],
+    )
     print(f"✓ Bottleneck stage: {bottleneck}")
     assert bottleneck == "processing", "Processing should be identified as bottleneck"
     
@@ -204,23 +208,31 @@ def test_bottleneck_detector():
     durations2 = {
         "procurement_time": 20.0,
         "processing_time": 60.0,
-        "dispatch_time": 12.0,
-        "delivery_time": 120.0,  # Longest
+        "dispatch_time_duration": 12.0,
+        "delivery_time_duration": 120.0,  # Longest
     }
     
-    bottleneck2 = bottleneck_detector.identify_bottleneck(durations2)
+    bottleneck2 = identify_bottleneck(
+        procurement_time=durations2["procurement_time"],
+        processing_time=durations2["processing_time"],
+        dispatch_time_duration=durations2["dispatch_time_duration"],
+        delivery_time_duration=durations2["delivery_time_duration"],
+    )
     print(f"✓ Bottleneck stage: {bottleneck2}")
     assert bottleneck2 == "delivery", "Delivery should be identified as bottleneck"
     
     # Test ranking
     print("\n[Test 3] Stage ranking by duration")
-    ranking = bottleneck_detector.analyze_bottlenecks(durations)
-    print(f"✓ Ranking:")
-    for stage, duration in ranking:
-        print(f"  - {stage}: {duration}h")
+    ranking_result = analyze_bottlenecks(
+        procurement_time=durations["procurement_time"],
+        processing_time=durations["processing_time"],
+        dispatch_time_duration=durations["dispatch_time_duration"],
+        delivery_time_duration=durations["delivery_time_duration"],
+    )
+    print(f"✓ Bottleneck stage: {ranking_result['bottleneck_stage']}")
+    assert ranking_result['bottleneck_stage'] == "processing", "First should be processing (longest)"
     
-    assert ranking[0][0] == "processing", "First should be processing (longest)"
-    
+
     print("\n✅ BOTTLENECK DETECTOR TESTS PASSED")
 
 

@@ -97,11 +97,33 @@ def get_analytics_summary(db: Session = Depends(get_db)):
         - Average stage durations
         - Bottleneck distribution
     """
-    summary = order_service.get_analytics_summary(db)
-    return summary
+    try:
+        return analytics_service.get_summary_response(db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch analytics summary: {str(e)}"
+        )
 
 
-@router.get("/sla-breaches", response_model=List[OrderResponse])
+@router.get("/bottlenecks")
+def get_bottlenecks(
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db)
+):
+    """
+    Get bottleneck stage distribution and top affected orders.
+    """
+    try:
+        return analytics_service.get_bottleneck_response(db, limit=limit)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch bottleneck analytics: {str(e)}"
+        )
+
+
+@router.get("/sla-breaches")
 def get_sla_breaches(
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db)
@@ -111,8 +133,13 @@ def get_sla_breaches(
     
     Returns orders sorted by most recent first.
     """
-    orders = order_service.get_orders_with_sla_breach(db, limit=limit)
-    return orders
+    try:
+        return analytics_service.get_sla_breach_response(db, limit=limit)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch SLA breach analytics: {str(e)}"
+        )
 
 
 @router.get("/bottlenecks/{stage}", response_model=List[OrderResponse])
@@ -189,8 +216,8 @@ def get_stage_performance(db: Session = Depends(get_db)):
     stages = {
         "procurement": Order.procurement_time,
         "processing": Order.processing_time,
-        "dispatch": Order.dispatch_time,
-        "delivery": Order.delivery_time,
+        "dispatch": Order.dispatch_time_duration,
+        "delivery": Order.delivery_time_duration,
         "total": Order.total_time,
     }
     
@@ -287,8 +314,8 @@ def get_orders_by_priority(db: Session = Depends(get_db)):
         func.avg(Order.total_time).label('avg_total_time'),
         func.avg(Order.procurement_time).label('avg_procurement'),
         func.avg(Order.processing_time).label('avg_processing'),
-        func.avg(Order.dispatch_time).label('avg_dispatch'),
-        func.avg(Order.delivery_time).label('avg_delivery')
+        func.avg(Order.dispatch_time_duration).label('avg_dispatch'),
+        func.avg(Order.delivery_time_duration).label('avg_delivery')
     ).group_by(Order.priority).all()
     
     result = []
@@ -383,14 +410,14 @@ def get_export_info():
 
 @router.post("/generate-dummy-data")
 def generate_dummy_data(
-    count: int = Query(default=200, ge=10, le=1000),
+    count: int = Query(default=200, ge=200, le=1000),
     db: Session = Depends(get_db)
 ):
     """
     Generate and insert realistic dummy orders into database.
     
     Parameters:
-        count: Number of dummy orders to generate (10-1000)
+        count: Number of dummy orders to generate (200-1000)
     
     Generates diverse scenarios including:
     - Normal orders

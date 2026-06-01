@@ -254,8 +254,8 @@ class DummyDataGenerator:
                     # Analytics fields
                     procurement_time=processed_data.get("procurement_time"),
                     processing_time=processed_data.get("processing_time"),
-                    dispatch_time=processed_data.get("dispatch_time"),
-                    delivery_time=processed_data.get("delivery_time"),
+                    dispatch_time_duration=processed_data.get("dispatch_time_duration"),
+                    delivery_time_duration=processed_data.get("delivery_time_duration"),
                     total_time=processed_data.get("total_time"),
                     sla_breach=processed_data.get("sla_breach", False),
                     breached_stage=processed_data.get("breached_stage"),

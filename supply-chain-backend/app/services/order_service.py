@@ -68,8 +68,8 @@ class OrderService:
             # Analytics fields
             procurement_time=processed_data.get("procurement_time"),
             processing_time=processed_data.get("processing_time"),
-            dispatch_time=processed_data.get("dispatch_time"),
-            delivery_time=processed_data.get("delivery_time"),
+            dispatch_time_duration=processed_data.get("dispatch_time_duration"),
+            delivery_time_duration=processed_data.get("delivery_time_duration"),
             total_time=processed_data.get("total_time"),
             sla_breach=processed_data.get("sla_breach", False),
             breached_stage=processed_data.get("breached_stage"),
@@ -215,11 +215,11 @@ class OrderService:
         avg_processing = db.query(func.avg(Order.processing_time)).filter(
             Order.processing_time.isnot(None)
         ).scalar()
-        avg_dispatch = db.query(func.avg(Order.dispatch_time)).filter(
-            Order.dispatch_time.isnot(None)
+        avg_dispatch = db.query(func.avg(Order.dispatch_time_duration)).filter(
+            Order.dispatch_time_duration.isnot(None)
         ).scalar()
-        avg_delivery = db.query(func.avg(Order.delivery_time)).filter(
-            Order.delivery_time.isnot(None)
+        avg_delivery = db.query(func.avg(Order.delivery_time_duration)).filter(
+            Order.delivery_time_duration.isnot(None)
         ).scalar()
         avg_total = db.query(func.avg(Order.total_time)).filter(
             Order.total_time.isnot(None)

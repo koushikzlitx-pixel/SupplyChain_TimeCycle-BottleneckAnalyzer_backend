@@ -94,28 +94,34 @@ class OrderValidator:
     def validate_durations(
         procurement_time: Optional[float] = None,
         processing_time: Optional[float] = None,
+        dispatch_time_duration: Optional[float] = None,
+        delivery_time_duration: Optional[float] = None,
+        # Backward-compatible aliases
         dispatch_time: Optional[float] = None,
-        delivery_time: Optional[float] = None
+        delivery_time: Optional[float] = None,
     ) -> Tuple[bool, List[str]]:
         """
         Validate calculated durations.
-        
+
         Args:
             procurement_time: Duration in hours
             processing_time: Duration in hours
-            dispatch_time: Duration in hours
-            delivery_time: Duration in hours
-            
+            dispatch_time_duration: Duration in hours
+            delivery_time_duration: Duration in hours
+
         Returns:
             Tuple of (is_valid: bool, errors: List[str])
         """
+        resolved_dispatch = dispatch_time_duration if dispatch_time_duration is not None else dispatch_time
+        resolved_delivery = delivery_time_duration if delivery_time_duration is not None else delivery_time
+
         errors = []
-        
+
         durations = {
             "procurement_time": procurement_time,
             "processing_time": processing_time,
-            "dispatch_time": dispatch_time,
-            "delivery_time": delivery_time,
+            "dispatch_time_duration": resolved_dispatch,
+            "delivery_time_duration": resolved_delivery,
         }
         
         for stage, duration in durations.items():
@@ -184,8 +190,8 @@ class OrderValidator:
             is_valid, duration_errors = OrderValidator.validate_durations(
                 order_data.get("procurement_time"),
                 order_data.get("processing_time"),
-                order_data.get("dispatch_time"),
-                order_data.get("delivery_time"),
+                order_data.get("dispatch_time_duration"),
+                order_data.get("delivery_time_duration"),
             )
             
             if not is_valid:

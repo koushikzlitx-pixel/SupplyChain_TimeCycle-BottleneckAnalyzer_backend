@@ -69,38 +69,46 @@ def calculate_processing_time(
     return calculate_duration(order_confirmed_at, processing_completed_at)
 
 
-def calculate_dispatch_time(
+def calculate_dispatch_time_duration(
     processing_completed_at: Optional[datetime],
     shipped_at: Optional[datetime]
 ) -> Optional[float]:
     """
-    Calculate dispatch time (processing completed to shipped).
-    
+    Calculate dispatch time duration (processing completed to shipped).
+
     Args:
         processing_completed_at: When processing was completed
         shipped_at: When order was shipped
-        
+
     Returns:
         Dispatch duration in hours
     """
     return calculate_duration(processing_completed_at, shipped_at)
 
 
-def calculate_delivery_time(
+# Backward-compatible alias
+calculate_dispatch_time = calculate_dispatch_time_duration
+
+
+def calculate_delivery_time_duration(
     shipped_at: Optional[datetime],
     delivered_at: Optional[datetime]
 ) -> Optional[float]:
     """
-    Calculate delivery time (shipped to delivered).
-    
+    Calculate delivery time duration (shipped to delivered).
+
     Args:
         shipped_at: When order was shipped
         delivered_at: When order was delivered
-        
+
     Returns:
         Delivery duration in hours
     """
     return calculate_duration(shipped_at, delivered_at)
+
+
+# Backward-compatible alias
+calculate_delivery_time = calculate_delivery_time_duration
 
 
 def calculate_total_time(
@@ -136,8 +144,8 @@ def calculate_all_durations(timestamps: dict) -> dict:
         Dictionary with calculated durations:
             - procurement_time
             - processing_time
-            - dispatch_time
-            - delivery_time
+            - dispatch_time_duration
+            - delivery_time_duration
             - total_time
     """
     return {
@@ -149,11 +157,11 @@ def calculate_all_durations(timestamps: dict) -> dict:
             timestamps.get("order_confirmed_at"),
             timestamps.get("processing_completed_at")
         ),
-        "dispatch_time": calculate_dispatch_time(
+        "dispatch_time_duration": calculate_dispatch_time_duration(
             timestamps.get("processing_completed_at"),
             timestamps.get("shipped_at")
         ),
-        "delivery_time": calculate_delivery_time(
+        "delivery_time_duration": calculate_delivery_time_duration(
             timestamps.get("shipped_at"),
             timestamps.get("delivered_at")
         ),

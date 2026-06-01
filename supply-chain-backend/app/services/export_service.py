@@ -30,6 +30,38 @@ class ExportService:
         Path(ExportService.EXPORT_DIR).mkdir(parents=True, exist_ok=True)
     
     @staticmethod
+    def _validate_orders_data(orders_data: List[Dict[str, Any]]) -> None:
+        """Validate export payload before DataFrame conversion."""
+        if not isinstance(orders_data, list) or len(orders_data) == 0:
+            raise ValueError("No processed orders available for export")
+
+        if not all(isinstance(item, dict) for item in orders_data):
+            raise ValueError("Invalid export payload: each row must be a dictionary")
+
+        required_columns = [
+            "order_placed_at",
+            "order_confirmed_at",
+            "processing_completed_at",
+            "shipped_at",
+            "delivered_at",
+            "procurement_time",
+            "processing_time",
+            "dispatch_time_duration",
+            "delivery_time_duration",
+            "total_time",
+            "sla_breach",
+            "breached_stage",
+            "bottleneck_stage",
+        ]
+
+        first_row = orders_data[0]
+        missing_columns = [col for col in required_columns if col not in first_row]
+        if missing_columns:
+            raise ValueError(
+                f"Export payload missing required analytics columns: {', '.join(missing_columns)}"
+            )
+
+    @staticmethod
     def export_orders_to_csv(orders_data: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """
         Export orders to CSV file.
@@ -40,6 +72,8 @@ class ExportService:
         Returns:
             Tuple of (export_path, summary_dict)
         """
+        ExportService._validate_orders_data(orders_data)
+
         # Ensure directory exists
         ExportService._ensure_export_directory()
         
@@ -68,8 +102,8 @@ class ExportService:
             # Stage Durations (Hours)
             "procurement_time",
             "processing_time",
-            "dispatch_time",
-            "delivery_time",
+            "dispatch_time_duration",
+            "delivery_time_duration",
             "total_time",
             
             # SLA Analysis
@@ -107,14 +141,21 @@ class ExportService:
         numeric_columns = [
             "procurement_time",
             "processing_time",
-            "dispatch_time",
-            "delivery_time",
+            "dispatch_time_duration",
+            "delivery_time_duration",
             "total_time"
         ]
         
         for col in numeric_columns:
             if col in df.columns:
-                df[col] = df[col].round(2)
+                df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
+
+        if "sla_breach" in df.columns:
+            df["sla_breach"] = df["sla_breach"].fillna(False).astype(bool)
+
+        for col in ["breached_stage", "bottleneck_stage", "priority", "status"]:
+            if col in df.columns:
+                df[col] = df[col].fillna("N/A")
         
         # Create export path with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

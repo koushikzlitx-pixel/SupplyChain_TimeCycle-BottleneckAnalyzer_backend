@@ -16,6 +16,7 @@ from datetime import datetime
 from app.utils.time_calculator import calculate_all_durations
 from app.utils.sla_detector import check_sla_breach, get_sla_status
 from app.utils.bottleneck_detector import identify_bottleneck, analyze_bottlenecks
+from app.utils.validator import order_validator
 
 
 class OrderPreprocessor:
@@ -70,6 +71,16 @@ class OrderPreprocessor:
             "errors": [],
             "warnings": []
         }
+
+        # Centralized sequence/type validation
+        is_valid_sequence, sequence_errors = order_validator.validate_timestamp_sequence(timestamps)
+        if not is_valid_sequence:
+            validation_result["is_valid"] = False
+            validation_result["errors"].extend(sequence_errors)
+
+        all_present, stage_presence = order_validator.validate_timestamp_completeness(timestamps)
+        validation_result["has_all_timestamps"] = all_present
+        validation_result["stage_presence"] = stage_presence
         
         # Check for negative durations (invalid sequences)
         timestamp_order = [
@@ -117,8 +128,8 @@ class OrderPreprocessor:
         sla_breach, breached_stage = check_sla_breach(
             procurement_time=durations.get("procurement_time"),
             processing_time=durations.get("processing_time"),
-            dispatch_time=durations.get("dispatch_time"),
-            delivery_time=durations.get("delivery_time"),
+            dispatch_time_duration=durations.get("dispatch_time_duration"),
+            delivery_time_duration=durations.get("delivery_time_duration"),
             custom_thresholds=self.custom_sla_thresholds
         )
         
@@ -140,8 +151,8 @@ class OrderPreprocessor:
         return identify_bottleneck(
             procurement_time=durations.get("procurement_time"),
             processing_time=durations.get("processing_time"),
-            dispatch_time=durations.get("dispatch_time"),
-            delivery_time=durations.get("delivery_time")
+            dispatch_time_duration=durations.get("dispatch_time_duration"),
+            delivery_time_duration=durations.get("delivery_time_duration")
         )
     
     def process_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -167,9 +178,33 @@ class OrderPreprocessor:
         
         # Step 2: Validate timestamps
         validation = self.validate_timestamps(timestamps)
+
+        if not validation.get("is_valid"):
+            return {
+                **order_data,
+                "procurement_time": None,
+                "processing_time": None,
+                "dispatch_time_duration": None,
+                "delivery_time_duration": None,
+                "total_time": None,
+                "sla_breach": False,
+                "breached_stage": None,
+                "bottleneck_stage": None,
+                "validation_errors": validation.get("errors", []),
+            }
         
         # Step 3: Calculate durations
         durations = self.calculate_durations(timestamps)
+
+        durations_valid, duration_errors = order_validator.validate_durations(
+            procurement_time=durations.get("procurement_time"),
+            processing_time=durations.get("processing_time"),
+            dispatch_time_duration=durations.get("dispatch_time_duration"),
+            delivery_time_duration=durations.get("delivery_time_duration"),
+        )
+
+        if not durations_valid:
+            validation["errors"].extend(duration_errors)
         
         # Step 4: Detect SLA breaches
         sla_info = self.detect_sla_breach(durations)
@@ -182,8 +217,8 @@ class OrderPreprocessor:
             # Duration fields
             "procurement_time": durations.get("procurement_time"),
             "processing_time": durations.get("processing_time"),
-            "dispatch_time": durations.get("dispatch_time"),
-            "delivery_time": durations.get("delivery_time"),
+            "dispatch_time_duration": durations.get("dispatch_time_duration"),
+            "delivery_time_duration": durations.get("delivery_time_duration"),
             "total_time": durations.get("total_time"),
             
             # SLA fields
@@ -219,8 +254,8 @@ class OrderPreprocessor:
         sla_status = get_sla_status(
             procurement_time=durations.get("procurement_time"),
             processing_time=durations.get("processing_time"),
-            dispatch_time=durations.get("dispatch_time"),
-            delivery_time=durations.get("delivery_time"),
+            dispatch_time_duration=durations.get("dispatch_time_duration"),
+            delivery_time_duration=durations.get("delivery_time_duration"),
             custom_thresholds=self.custom_sla_thresholds
         )
         
@@ -228,8 +263,8 @@ class OrderPreprocessor:
         bottleneck_analysis = analyze_bottlenecks(
             procurement_time=durations.get("procurement_time"),
             processing_time=durations.get("processing_time"),
-            dispatch_time=durations.get("dispatch_time"),
-            delivery_time=durations.get("delivery_time")
+            dispatch_time_duration=durations.get("dispatch_time_duration"),
+            delivery_time_duration=durations.get("delivery_time_duration")
         )
         
         return {
