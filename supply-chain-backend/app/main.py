@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from app.database import init_db
 from app.routers import orders, stage_logs, analytics
+from app.utils.sla_detector import get_sla_thresholds
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +29,17 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"]
 @app.get("/")
 def root():
     return {"message": "Supply Chain API is running"}
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint with SLA configuration and server status."""
+    return {
+        "status": "healthy",
+        "version": app.version,
+        "timestamp": datetime.utcnow().isoformat(),
+        "sla_thresholds_hours": get_sla_thresholds(),
+    }
 
 
 @app.get("/health")

@@ -8,3 +8,16 @@ venv/
 .env
 *.log
 .DS_Store
+# Test and coverage
+.pytest_cache/
+htmlcov/
+.coverage
+# Export data
+data/processed/*.csv
+# IDE
+.vscode/
+.idea/
+# Build
+dist/
+build/
+*.egg-info/
