@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import datetime
 
 from app.database import get_db
 from app.models import Order, OrderStatus as ModelOrderStatus
@@ -44,10 +45,12 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
 @router.get("/", response_model=List[OrderResponse])
 def list_orders(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = Query(default=100, ge=1, le=1000),
     status: OrderStatus = None,
     sla_breach: bool = None,
     bottleneck_stage: str = None,
+    from_date: Optional[datetime] = Query(default=None, description="Filter by order_placed_at >= date (ISO 8601)"),
+    to_date: Optional[datetime] = Query(default=None, description="Filter by order_placed_at <= date (ISO 8601)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -57,6 +60,7 @@ def list_orders(
     - status: Order status (pending, processing, completed, cancelled)
     - sla_breach: Whether order breached SLA (true/false)
     - bottleneck_stage: Specific bottleneck stage
+    - from_date / to_date: Date range on order_placed_at (ISO 8601)
     """
     model_status = ModelOrderStatus(status.value) if status else None
     
@@ -66,7 +70,9 @@ def list_orders(
         limit=limit,
         status=model_status,
         sla_breach=sla_breach,
-        bottleneck_stage=bottleneck_stage
+        bottleneck_stage=bottleneck_stage,
+        from_date=from_date,
+        to_date=to_date,
     )
     
     return orders

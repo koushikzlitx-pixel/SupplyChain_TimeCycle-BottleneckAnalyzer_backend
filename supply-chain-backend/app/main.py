@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+from app.config import settings
 from app.database import init_db
 from app.routers import orders, stage_logs, analytics
 from app.utils.sla_detector import get_sla_thresholds
@@ -14,9 +15,9 @@ async def lifespan(app: FastAPI):
     # Shutdown: cleanup if needed
 
 app = FastAPI(
-    title="Supply Chain Time Cycle & Bottleneck Analyzer",
+    title=settings.APP_TITLE,
     description="Advanced supply chain analytics platform with SLA monitoring and bottleneck detection",
-    version="2.0.0",
+    version=settings.APP_VERSION,
     lifespan=lifespan
 )
 

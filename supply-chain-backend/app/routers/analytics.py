@@ -17,7 +17,7 @@ from datetime import datetime
 
 from app.database import get_db
 from app.models import Order
-from app.schemas import OrderResponse
+from app.schemas import OrderResponse, SummaryResponse, BottleneckResponse, SLABreachResponse, BottleneckDistributionResponse
 from app.services.order_service import order_service
 from app.services.order_preprocessing import default_preprocessor
 from app.services.analytics_service import analytics_service
@@ -86,7 +86,7 @@ def get_stage_performance_metrics(db: Session = Depends(get_db)):
     return metrics
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=SummaryResponse)
 def get_analytics_summary(db: Session = Depends(get_db)):
     """
     Get aggregate analytics summary across all orders.
@@ -106,7 +106,7 @@ def get_analytics_summary(db: Session = Depends(get_db)):
         )
 
 
-@router.get("/bottlenecks")
+@router.get("/bottlenecks", response_model=BottleneckResponse)
 def get_bottlenecks(
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db)
@@ -123,7 +123,7 @@ def get_bottlenecks(
         )
 
 
-@router.get("/sla-breaches")
+@router.get("/sla-breaches", response_model=SLABreachResponse)
 def get_sla_breaches(
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db)

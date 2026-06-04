@@ -149,7 +149,9 @@ class OrderService:
         limit: int = 100,
         status: Optional[ModelOrderStatus] = None,
         sla_breach: Optional[bool] = None,
-        bottleneck_stage: Optional[str] = None
+        bottleneck_stage: Optional[str] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
     ) -> List[Order]:
         """
         List orders with optional filtering.
@@ -161,6 +163,8 @@ class OrderService:
             status: Filter by order status
             sla_breach: Filter by SLA breach status
             bottleneck_stage: Filter by bottleneck stage
+            from_date: Filter orders placed on or after this date
+            to_date: Filter orders placed on or before this date
             
         Returns:
             List of Order instances
@@ -173,8 +177,12 @@ class OrderService:
             query = query.filter(Order.sla_breach == sla_breach)
         if bottleneck_stage:
             query = query.filter(Order.bottleneck_stage == bottleneck_stage)
+        if from_date is not None:
+            query = query.filter(Order.order_placed_at >= from_date)
+        if to_date is not None:
+            query = query.filter(Order.order_placed_at <= to_date)
         
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
     
     def delete_order(self, db: Session, order_id: int) -> bool:
         """
