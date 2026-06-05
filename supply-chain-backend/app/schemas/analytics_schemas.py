@@ -114,3 +114,29 @@ class BottleneckDistributionEntry(BaseModel):
 class BottleneckDistributionResponse(BaseModel):
     total_with_bottleneck: int
     distribution: List[BottleneckDistributionEntry]
+
+
+# ── Priority Breakdown ─────────────────────────────────────────────────────────
+
+class PriorityAverageDurations(BaseModel):
+    total_time: Optional[float] = None
+    procurement_time: Optional[float] = None
+    processing_time: Optional[float] = None
+    dispatch_time: Optional[float] = None
+    delivery_time: Optional[float] = None
+
+
+class PriorityBreakdownEntry(BaseModel):
+    priority: str
+    total_orders: int
+    sla_breaches: int
+    sla_breach_rate: float
+    average_durations: PriorityAverageDurations
+
+
+# ── Daily Trend ────────────────────────────────────────────────────────────────
+
+class DailyTrendEntry(BaseModel):
+    date: str
+    order_count: int
+    sla_breach_count: int

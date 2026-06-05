@@ -377,6 +377,78 @@ class AnalyticsService:
         
         return metrics
 
+    @staticmethod
+    def get_priority_breakdown(db: Session) -> List[Dict[str, Any]]:
+        """
+        Get analytics grouped by order priority.
+
+        Returns avg durations and SLA breach rate per priority level.
+        """
+        rows = db.query(
+            Order.priority,
+            func.count(Order.id).label('total_orders'),
+            func.sum(Order.sla_breach).label('sla_breaches'),
+            func.avg(Order.total_time).label('avg_total'),
+            func.avg(Order.procurement_time).label('avg_procurement'),
+            func.avg(Order.processing_time).label('avg_processing'),
+            func.avg(Order.dispatch_time_duration).label('avg_dispatch'),
+            func.avg(Order.delivery_time_duration).label('avg_delivery'),
+        ).group_by(Order.priority).order_by(Order.priority).all()
+
+        result = []
+        for r in rows:
+            total = r.total_orders or 0
+            breaches = int(r.sla_breaches or 0)
+            result.append({
+                "priority": r.priority,
+                "total_orders": total,
+                "sla_breaches": breaches,
+                "sla_breach_rate": round(breaches / total * 100, 2) if total > 0 else 0.0,
+                "average_durations": {
+                    "total_time": round(r.avg_total, 2) if r.avg_total else None,
+                    "procurement_time": round(r.avg_procurement, 2) if r.avg_procurement else None,
+                    "processing_time": round(r.avg_processing, 2) if r.avg_processing else None,
+                    "dispatch_time": round(r.avg_dispatch, 2) if r.avg_dispatch else None,
+                    "delivery_time": round(r.avg_delivery, 2) if r.avg_delivery else None,
+                },
+            })
+        return result
+
+    @staticmethod
+    def get_daily_order_trend(db: Session, days: int = 30) -> List[Dict[str, Any]]:
+        """
+        Get order count per day for the last N days.
+
+        Returns a list of {date, order_count, sla_breach_count} entries
+        sorted ascending by date.
+        """
+        from datetime import date
+        from sqlalchemy import cast, Date
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        rows = db.query(
+            cast(Order.order_placed_at, Date).label('day'),
+            func.count(Order.id).label('order_count'),
+            func.sum(Order.sla_breach).label('sla_breach_count'),
+        ).filter(
+            Order.order_placed_at >= cutoff,
+            Order.order_placed_at.isnot(None),
+        ).group_by(
+            cast(Order.order_placed_at, Date)
+        ).order_by(
+            cast(Order.order_placed_at, Date)
+        ).all()
+
+        return [
+            {
+                "date": str(r.day),
+                "order_count": r.order_count,
+                "sla_breach_count": int(r.sla_breach_count or 0),
+            }
+            for r in rows
+        ]
+
 
 # Singleton instance
 analytics_service = AnalyticsService()

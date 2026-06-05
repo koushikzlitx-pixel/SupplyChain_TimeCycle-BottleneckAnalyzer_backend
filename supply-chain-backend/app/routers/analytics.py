@@ -448,3 +448,40 @@ def generate_dummy_data(
 
 
 # ==================== ORIGINAL ENDPOINTS (PRESERVED) ====================
+
+
+@router.get("/priority-breakdown")
+def get_priority_breakdown(db: Session = Depends(get_db)):
+    """
+    Get analytics grouped by order priority.
+
+    Returns avg durations and SLA breach rate per priority (normal, high, urgent).
+    Useful for dashboard KPI cards and priority comparison charts.
+    """
+    try:
+        return analytics_service.get_priority_breakdown(db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch priority breakdown: {str(e)}"
+        )
+
+
+@router.get("/daily-trend")
+def get_daily_order_trend(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db)
+):
+    """
+    Get order count and SLA breach count per day for the last N days.
+
+    Returns a time-series list sorted ascending by date.
+    Directly consumable by line charts and Tableau date-axis visualizations.
+    """
+    try:
+        return analytics_service.get_daily_order_trend(db, days=days)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch daily trend: {str(e)}"
+        )

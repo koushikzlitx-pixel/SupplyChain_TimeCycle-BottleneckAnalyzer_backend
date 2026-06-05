@@ -22,4 +22,6 @@ from app.schemas.analytics_schemas import (
     BottleneckResponse,
     SLABreachResponse,
     BottleneckDistributionResponse,
+    PriorityBreakdownEntry,
+    DailyTrendEntry,
 )
