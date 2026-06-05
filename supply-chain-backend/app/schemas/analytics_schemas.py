@@ -28,6 +28,15 @@ class SummaryData(BaseModel):
     total_orders: int
     completed_orders: int
     pending_orders: int
+    # Flat KPI fields
+    average_total_time: Optional[float] = None
+    average_procurement_time: Optional[float] = None
+    average_processing_time: Optional[float] = None
+    average_dispatch_time: Optional[float] = None
+    average_delivery_time: Optional[float] = None
+    sla_breach_count: int = 0
+    sla_breach_percentage: float = 0.0
+    # Nested (backward compat)
     average_durations: AverageDurations
     sla_analysis: SLAAnalysis
     bottleneck_distribution: Dict[str, int]
@@ -78,6 +87,7 @@ class BreachedOrder(BaseModel):
     order_number: str
     breached_stage: Optional[str] = None
     total_time: Optional[float] = None
+    bottleneck_stage: Optional[str] = None
     stage_durations: StageDurations
 
 

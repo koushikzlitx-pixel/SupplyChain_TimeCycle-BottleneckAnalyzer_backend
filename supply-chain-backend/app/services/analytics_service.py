@@ -94,6 +94,15 @@ class AnalyticsService:
             "total_orders": total_orders,
             "completed_orders": completed_orders,
             "pending_orders": pending_orders,
+            # Flat average fields for KPI cards
+            "average_total_time": round(avg_total, 2) if avg_total else None,
+            "average_procurement_time": round(avg_procurement, 2) if avg_procurement else None,
+            "average_processing_time": round(avg_processing, 2) if avg_processing else None,
+            "average_dispatch_time": round(avg_dispatch, 2) if avg_dispatch else None,
+            "average_delivery_time": round(avg_delivery, 2) if avg_delivery else None,
+            "sla_breach_count": sla_breaches,
+            "sla_breach_percentage": sla_breach_percentage,
+            # Nested average_durations kept for backward compatibility
             "average_durations": {
                 "total_time": round(avg_total, 2) if avg_total else None,
                 "procurement_time": round(avg_procurement, 2) if avg_procurement else None,
@@ -200,9 +209,10 @@ class AnalyticsService:
             - breached_stages (with counts)
             - breached_orders (with stage and time)
         """
-        # Total SLA breaches
-        breach_query = db.query(Order).filter(Order.sla_breach == True).all()
-        total_breaches = len(breach_query)
+        # Total SLA breaches — use aggregation, not Python-level len()
+        total_breaches = db.query(func.count(Order.id)).filter(
+            Order.sla_breach == True
+        ).scalar() or 0
         
         # Total orders for percentage calculation
         total_orders = db.query(func.count(Order.id)).scalar() or 0
@@ -222,12 +232,13 @@ class AnalyticsService:
         
         breached_stages = {stage: count for stage, count in breached_stage_data}
         
-        # Detailed breached orders
+        # Detailed breached orders — include bottleneck_stage
         breached_orders_query = db.query(
             Order.id,
             Order.order_number,
             Order.breached_stage,
             Order.total_time,
+            Order.bottleneck_stage,
             Order.procurement_time,
             Order.processing_time,
             Order.dispatch_time_duration,
@@ -242,6 +253,7 @@ class AnalyticsService:
                 "order_number": order.order_number,
                 "breached_stage": order.breached_stage,
                 "total_time": order.total_time,
+                "bottleneck_stage": order.bottleneck_stage,
                 "stage_durations": {
                     "procurement_time": order.procurement_time,
                     "processing_time": order.processing_time,
