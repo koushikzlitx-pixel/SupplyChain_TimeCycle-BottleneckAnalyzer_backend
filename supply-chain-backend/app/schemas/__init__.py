@@ -25,3 +25,15 @@ from app.schemas.analytics_schemas import (
     PriorityBreakdownEntry,
     DailyTrendEntry,
 )
+
+from app.schemas.forecast_schemas import (
+    DemandRecordCreate,
+    DemandRecordResponse,
+    TrainModelRequest,
+    TrainModelResponse,
+    PredictRequest,
+    PredictResponse,
+    ModelInfo,
+    GenerateDemandDataRequest,
+    GenerateDemandDataResponse,
+)

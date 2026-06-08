@@ -5,6 +5,7 @@ from datetime import datetime
 from app.config import settings
 from app.database import init_db
 from app.routers import orders, stage_logs, analytics
+from app.routers import forecasting
 from app.utils.sla_detector import get_sla_thresholds
 
 @asynccontextmanager
@@ -25,6 +26,7 @@ app = FastAPI(
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 app.include_router(stage_logs.router, prefix="/api/stage-logs", tags=["stage-logs"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(forecasting.router, prefix="/api/forecasting", tags=["forecasting"])
 
 
 @app.get("/")
